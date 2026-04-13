@@ -1,0 +1,7 @@
+checkout-*/
+staging
+demo-repo/
+*.img
+*.qcow2
+_build/
+objects.cfs
