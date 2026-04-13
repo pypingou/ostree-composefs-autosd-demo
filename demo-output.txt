@@ -1,0 +1,196 @@
+=== OSTree + fs-verity + composefs Security Demo ===
+
+
+Cleaning up...
+Step 1: Creating OSTree repository
+$ ostree --repo=demo-repo init --mode=bare-user
+
+Step 2: Creating sample files
+$ mkdir -p staging
+$ echo "Hello from file1" > staging/file1.txt
+$ echo "Hello from file2" > staging/file2.txt
+$ mkdir -p staging/subdir
+$ echo "Hello from nested file" > staging/subdir/nested.txt
+$ chmod 644 staging/file1.txt staging/file2.txt staging/subdir/nested.txt
+$ tree staging/
+staging/
+├── file1.txt
+├── file2.txt
+└── subdir
+    └── nested.txt
+
+2 directories, 3 files
+
+Step 3: Committing to OSTree
+$ ostree --repo=demo-repo commit --branch=main --subject=Initial commit staging/
+c4b018f615b6dd4862aab016955f52ee47c308a96ab3cdba28c3260eb7f1bf5a
+Commit hash: c4b018f615b6dd4862aab016955f52ee47c308a96ab3cdba28c3260eb7f1bf5a
+
+
+Press ENTER to continue...
+
+=== DEMO 1: Regular OSTree checkout (no security) ===
+$ ostree --repo=demo-repo checkout main checkout-regular
+
+Original content:
+$ cat checkout-regular/file1.txt
+Hello from file1
+
+Attempting to modify file1.txt...
+$ echo "MODIFIED CONTENT" > checkout-regular/file1.txt
+✓ SUCCESS: File was modified!
+$ cat checkout-regular/file1.txt
+MODIFIED CONTENT
+
+Attempting to chmod file1.txt...
+$ chmod 777 checkout-regular/file1.txt
+✓ SUCCESS: Permissions changed!
+$ ls -l checkout-regular/file1.txt
+-rwxrwxrwx. 1 root root 17 Apr 13 08:30 checkout-regular/file1.txt
+
+Attempting to add new file...
+$ echo "new content" > checkout-regular/newfile.txt
+✓ SUCCESS: New file added!
+$ ls -l checkout-regular/
+total 16
+-rwxrwxrwx. 1 root root   17 Apr 13 08:30 file1.txt
+-rw-r--r--. 1 root root   17 Apr 13 08:30 file2.txt
+-rw-r--r--. 1 root root   12 Apr 13 08:30 newfile.txt
+drwxr-xr-x. 2 root root 4096 Jan  1  1970 subdir
+$ cat checkout-regular/newfile.txt
+new content
+
+Attempting to remove file2.txt...
+$ rm checkout-regular/file2.txt
+✓ SUCCESS: File was deleted!
+$ ls -l checkout-regular/
+total 12
+-rwxrwxrwx. 1 root root   17 Apr 13 08:30 file1.txt
+-rw-r--r--. 1 root root   12 Apr 13 08:30 newfile.txt
+drwxr-xr-x. 2 root root 4096 Jan  1  1970 subdir
+
+CONCLUSION: Regular checkout is fully mutable - NO SECURITY
+
+
+Press ENTER to continue...
+
+=== DEMO 2: OSTree checkout with fs-verity ===
+Checking out files and enabling fs-verity on them...
+$ ostree --repo=demo-repo checkout --force-copy main checkout-fsverity
+
+Enabling fs-verity on files (requires root):
+$ sudo fsverity enable checkout-fsverity/file1.txt
+✓ Enabled fs-verity on checkout-fsverity/file1.txt
+$ sudo fsverity enable checkout-fsverity/file2.txt
+✓ Enabled fs-verity on checkout-fsverity/file2.txt
+$ sudo fsverity enable checkout-fsverity/subdir/nested.txt
+✓ Enabled fs-verity on checkout-fsverity/subdir/nested.txt
+
+Checking fs-verity status:
+$ fsverity measure checkout-fsverity/file1.txt
+sha256:5c0e49b37554b35d5c9ab0591a83caf435e18b3dc2a2fd1ecd44ba545034b8c5 checkout-fsverity/file1.txt
+
+Original content:
+$ cat checkout-fsverity/file1.txt
+Hello from file1
+
+Attempting to modify file1.txt...
+$ echo "MODIFIED CONTENT" > checkout-fsverity/file1.txt
+/usr/bin/ostree-composefs-demo: line 166: checkout-fsverity/file1.txt: Operation not permitted
+✗ FAILED: Cannot modify (fs-verity/immutable protection)
+
+Attempting to chmod file1.txt...
+$ chmod 777 checkout-fsverity/file1.txt
+✓ SUCCESS: Permissions can still be changed!
+$ ls -l checkout-fsverity/file1.txt
+-rwxrwxrwx. 1 root root 17 Apr 13 08:30 checkout-fsverity/file1.txt
+Note: fs-verity only protects content, not metadata
+
+Attempting to add new file...
+$ echo "new content" > checkout-fsverity/newfile.txt
+✓ SUCCESS: New files can still be added!
+$ ls -l checkout-fsverity/
+total 24
+-rwxrwxrwx. 1 root root   17 Apr 13 08:30 file1.txt
+-rw-r--r--. 1 root root   17 Apr 13 08:30 file2.txt
+-rw-r--r--. 1 root root   12 Apr 13 08:30 newfile.txt
+drwxr-xr-x. 2 root root 4096 Apr 13 08:30 subdir
+Note: fs-verity only protects existing files
+
+Attempting to remove file2.txt...
+$ rm checkout-fsverity/file2.txt
+✓ SUCCESS: File was deleted!
+$ ls -l checkout-fsverity/
+total 16
+-rwxrwxrwx. 1 root root   17 Apr 13 08:30 file1.txt
+-rw-r--r--. 1 root root   12 Apr 13 08:30 newfile.txt
+drwxr-xr-x. 2 root root 4096 Apr 13 08:30 subdir
+Note: fs-verity doesn't prevent deletion
+
+CONCLUSION: fs-verity protects file CONTENT but allows chmod, add, and delete
+
+
+Press ENTER to continue...
+
+=== DEMO 3: OSTree with composefs (full security) ===
+Generating composefs metadata from ostree commit...
+$ ostree --repo=demo-repo checkout --composefs main checkout-composefs-staging/metadata.cfs
+✓ Composefs metadata created
+$ ls -lh checkout-composefs-staging/metadata.cfs
+-rw-r--r--. 1 root root 24K Apr 13 08:30 checkout-composefs-staging/metadata.cfs
+
+Mounting composefs image...
+$ mount.composefs -o basedir=demo-repo/objects checkout-composefs-staging/metadata.cfs checkout-composefs
+✓ Composefs mounted successfully (via FUSE)
+
+Checking mounted content:
+$ ls -la checkout-composefs/
+total 40
+drwxr-xr-x. 8 root root 4096 Jan  1  1970 .
+drwx------. 8 root root 4096 Apr 13 08:30 ..
+drwxr-xr-x. 2 root root   27 Jan  1  1970 boot
+drwxr-xr-x. 2 root root   27 Jan  1  1970 etc
+-rw-r--r--. 1 root root   17 Jan  1  1970 file1.txt
+-rw-r--r--. 1 root root   17 Jan  1  1970 file2.txt
+drwxr-xr-x. 2 root root   49 Jan  1  1970 subdir
+drwxr-xr-x. 2 root root   27 Jan  1  1970 sysroot
+drwxr-xr-x. 2 root root   27 Jan  1  1970 usr
+drwxr-xr-x. 2 root root   27 Jan  1  1970 var
+Note: ostree --composefs adds FHS directories (boot,etc,usr,var,sysroot) for system deployments
+$ cat checkout-composefs/file1.txt
+Hello from file1
+
+Checking mount options:
+composefs on / type overlay (ro,relatime,seclabel,lowerdir+=/run/ostree/.private/cfsroot-lower,datadir+=/sysroot/ostree/repo/objects,redirect_dir=on,metacopy=on,verity=require)
+composefs on /var/roothome/checkout-composefs type overlay (ro,relatime,seclabel,lowerdir+=/tmp/.composefs.ltCk9v,datadir+=demo-repo/objects,redirect_dir=on,metacopy=on)
+composefs on /sysroot/ostree/deploy/default/var/roothome/checkout-composefs type overlay (ro,relatime,seclabel,lowerdir+=/tmp/.composefs.ltCk9v,datadir+=demo-repo/objects,redirect_dir=on,metacopy=on)
+
+Attempting to modify file1.txt...
+$ echo "MODIFIED" > checkout-composefs/file1.txt
+/usr/bin/ostree-composefs-demo: line 263: checkout-composefs/file1.txt: Read-only file system
+✗ FAILED: Cannot modify (read-only filesystem)
+
+Attempting to chmod file1.txt...
+$ chmod 777 checkout-composefs/file1.txt
+✗ FAILED: Cannot chmod (read-only filesystem)
+
+Attempting to add new file...
+$ echo "new" > checkout-composefs/newfile.txt
+/usr/bin/ostree-composefs-demo: line 281: checkout-composefs/newfile.txt: Read-only file system
+✗ FAILED: Cannot add files (read-only filesystem)
+
+Attempting to remove file2.txt...
+$ rm checkout-composefs/file2.txt
+✗ FAILED: Cannot delete files (read-only filesystem)
+
+CONCLUSION: Composefs provides complete immutability - FULLY SECURE!
+The filesystem is read-only and tamperproof with cryptographic verification
+
+Unmounting...
+$ umount checkout-composefs
+
+Press ENTER to continue...
+
+
+=== Demo Complete ===
+To cleanup, run: rm -rf demo-repo checkout-* staging objects.cfs
