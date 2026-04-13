@@ -1,0 +1,58 @@
+# Image useful for doing development on
+
+name: simple-developer
+
+content:
+  repos:
+    - id: epel
+      baseurl: https://dl.fedoraproject.org/pub/epel/10/Everything/$arch/
+
+  rpms:
+    # Some convenience packages
+    - sudo
+    - vim
+    - openssh-clients
+    - openssh-server
+    # for the demo
+    - tree
+    - fsverity-utils
+    - ncurses
+
+  add_files:
+    - path: /usr/bin/ostree-composefs-demo
+      source_path: ./ostree-composefs-demo.sh
+
+  chmod_files:
+    - path: /usr/bin/ostree-composefs-demo
+      mode: "755"
+
+  systemd:
+    enabled_services:
+      # Enable ssh daemon
+      - sshd.service
+
+qm:
+  content:
+    rpms:
+     - vim
+     - wget
+     - git
+     - podman
+
+auth:
+  # "password"
+  root_password: $6$xoLqEUz0cGGJRx01$H3H/bFm0myJPULNMtbSsOFd/2BnHqHkMD92Sfxd.EKM9hXTWSmELG8cf205l6dktomuTcgKGGtGDgtvHVXSWU.
+
+  sshd_config:
+    PasswordAuthentication: true
+    PermitRootLogin: true
+
+  # Add a guest user
+  groups:
+    guest:
+      gid: 2000
+  users:
+    guest:
+      password: $6$xoLqEUz0cGGJRx01$H3H/bFm0myJPULNMtbSsOFd/2BnHqHkMD92Sfxd.EKM9hXTWSmELG8cf205l6dktomuTcgKGGtGDgtvHVXSWU.
+      uid: 2000
+      gid: 2000
