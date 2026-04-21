@@ -39,6 +39,7 @@ cleanup() {
 
 # Cleanup any previous runs
 cleanup
+clear
 
 # Step 1: Create an OSTree repository
 echo -e "${GREEN}Step 1: Creating OSTree repository${NC}"
@@ -210,6 +211,9 @@ fi
 echo -e "\n${YELLOW}CONCLUSION: fs-verity protects file CONTENT but allows chmod, add, and delete${NC}\n"
 
 pause
+
+# Add spacing in scroll buffer, then clear to show Demo 3 at top
+printf '\n%.0s' {1..50}
 clear
 
 # ============================================================================
