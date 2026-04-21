@@ -258,8 +258,14 @@ if [ -n "$COMPOSEFS_FILE" ] && [ -f "$COMPOSEFS_FILE" ]; then
         run cat checkout-composefs/file1.txt
         echo
 
-        echo -e "${YELLOW}Checking mount options:${NC}"
-        run mount | grep composefs
+        echo -e "${YELLOW}Checking mount options for our demo mount:${NC}"
+        echo -e "${CYAN}\$ mount | grep checkout-composefs${NC}"
+        if mount | grep checkout-composefs; then
+            true  # Command succeeded, output shown
+        else
+            echo -e "${YELLOW}(mount point not found, showing all composefs mounts)${NC}"
+            run mount | grep composefs
+        fi
         echo
 
         echo -e "${YELLOW}Attempting to modify file1.txt...${NC}"
