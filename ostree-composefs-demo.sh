@@ -309,6 +309,18 @@ if [ -n "$COMPOSEFS_FILE" ] && [ -f "$COMPOSEFS_FILE" ]; then
         # Unmount
         echo -e "${YELLOW}Unmounting...${NC}"
         run umount checkout-composefs
+        echo
+
+        pause
+        # Show composefs structure
+        echo -e "${YELLOW}Composefs file structure:${NC}"
+        if command -v composefs-info &> /dev/null; then
+            run composefs-info dump "$COMPOSEFS_FILE"
+        else
+            echo -e "${YELLOW}⚠ composefs-info command not found${NC}"
+            echo -e "${YELLOW}Install with: sudo dnf install composefs${NC}"
+        fi
+
     else
         echo -e "${RED}✗ Failed to mount composefs${NC}"
         echo -e "${YELLOW}Trying with fusermount...${NC}"
